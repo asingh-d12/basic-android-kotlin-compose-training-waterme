@@ -16,6 +16,13 @@
 
 package com.example.waterme.ui
 
+import android.Manifest
+import android.app.Activity
+import android.content.pm.PackageManager
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -34,18 +41,25 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.waterme.FIVE_SECONDS
 import com.example.waterme.ONE_DAY
+import com.example.waterme.ONE_MINUTE
 import com.example.waterme.R
 import com.example.waterme.SEVEN_DAYS
 import com.example.waterme.THIRTY_DAYS
+import com.example.waterme.THREE_MINUTES
+import com.example.waterme.TWO_MINUTES
 import com.example.waterme.data.DataSource
 import com.example.waterme.data.Reminder
 import com.example.waterme.model.Plant
@@ -54,6 +68,46 @@ import java.util.concurrent.TimeUnit
 
 @Composable
 fun WaterMeApp(waterViewModel: WaterViewModel = viewModel(factory = WaterViewModel.Factory)) {
+
+    val context = LocalContext.current
+
+    var permissionToNotify by remember {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                mutableStateOf(true)
+            } else {
+                mutableStateOf(false)
+            }
+        } else {
+            mutableStateOf(true)
+        }
+
+    }
+
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (isGranted) {
+                permissionToNotify = true
+            } else if (ActivityCompat.shouldShowRequestPermissionRationale(
+                    context as Activity,
+                    Manifest.permission.POST_NOTIFICATIONS
+                )
+            ) {
+                Toast.makeText(
+                    context,
+                    "Permission required to post notification, currently not granted.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    )
+
     WaterMeAppTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
@@ -61,7 +115,23 @@ fun WaterMeApp(waterViewModel: WaterViewModel = viewModel(factory = WaterViewMod
         ) {
             PlantListContent(
                 plants = waterViewModel.plants,
-                onScheduleReminder = { waterViewModel.scheduleReminder(it) }
+                onScheduleReminder = {
+
+                    if (permissionToNotify) {
+                        waterViewModel.scheduleReminder(it)
+                    } else {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            launcher.launch(
+                                Manifest.permission.POST_NOTIFICATIONS
+                            )
+                            Toast.makeText(
+                                context,
+                                "Please allow the permission to send notification, and try again",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
             )
         }
     }
@@ -133,6 +203,9 @@ fun ReminderDialogContent(
 ) {
     val reminders = listOf(
         Reminder(R.string.five_seconds, FIVE_SECONDS, TimeUnit.SECONDS, plantName),
+        Reminder(R.string.one_minute, ONE_MINUTE, TimeUnit.MINUTES, plantName),
+        Reminder(R.string.two_minutes, TWO_MINUTES, TimeUnit.MINUTES, plantName),
+        Reminder(R.string.three_minutes, THREE_MINUTES, TimeUnit.MINUTES, plantName),
         Reminder(R.string.one_day, ONE_DAY, TimeUnit.DAYS, plantName),
         Reminder(R.string.one_week, SEVEN_DAYS, TimeUnit.DAYS, plantName),
         Reminder(R.string.one_month, THIRTY_DAYS, TimeUnit.DAYS, plantName)

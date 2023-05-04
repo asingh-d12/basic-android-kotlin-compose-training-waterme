@@ -16,14 +16,18 @@
 
 package com.example.waterme.worker
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.example.waterme.CHANNEL_ID
 import com.example.waterme.MainActivity
 import com.example.waterme.NOTIFICATION_ID
@@ -65,7 +69,25 @@ fun makePlantReminderNotification(
         .setContentIntent(pendingIntent)
         .setAutoCancel(true)
 
-    NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, builder.build())
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, builder.build())
+        } else {
+            Toast.makeText(
+                context,
+                "You do not have permission to send notification, this won't work",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    } else {
+        NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, builder.build())
+    }
+
+
 }
 
 fun createPendingIntent(appContext: Context): PendingIntent {
